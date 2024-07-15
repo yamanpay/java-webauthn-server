@@ -329,6 +329,14 @@ public class BinaryUtil {
     }
   }
 
+  /**
+   * Parse a CHOICE with a prescribed tag value and return a copy of the
+   * content octets.
+   */
+  public static ParseDerResult<byte[]> parseDerChoice( @NonNull byte[] der, int offset, byte tagNumber) {
+    return parseDerExplicitlyTaggedContextSpecificConstructed(der, offset, tagNumber);
+  }
+
   public static byte[] encodeDerObjectId(@NonNull byte[] oid) {
     byte[] result = new byte[2 + oid.length];
     result[0] = 0x06;
@@ -344,5 +352,35 @@ public class BinaryUtil {
   public static byte[] encodeDerSequence(final byte[]... items) {
     byte[] content = BinaryUtil.concat(items);
     return BinaryUtil.concat(new byte[] {0x30}, encodeDerLength(content.length), content);
+  }
+
+  private static byte[] encodeDerTagged(final byte tag, @NonNull final byte[] content) {
+    return BinaryUtil.concat(new byte[]{ tag }, encodeDerLength(content.length), content);
+  }
+
+  private static byte[] encodeDerExplicitlyTaggedContextSpecificConstructed(final byte tagNumber, final byte[] content) {
+    if (tagNumber <= 30 && tagNumber >= 0) {
+      return encodeDerTagged((byte) ((tagNumber & 0x1f) | 0xa0), content);
+    } else {
+      throw new UnsupportedOperationException(
+              String.format("Tag number out of range: %d (expected 0 to 30, inclusive)", tagNumber));
+    }
+  }
+
+  private static byte[] encodeDerExplicitlyTaggedContextSpecificPrimitive(final byte tagNumber, final byte[] content) {
+    if (tagNumber <= 30 && tagNumber >= 0) {
+      return encodeDerTagged((byte) ((tagNumber & 0x1f)), content);
+    } else {
+      throw new UnsupportedOperationException(
+              String.format("Tag number out of range: %d (expected 0 to 30, inclusive)", tagNumber));
+    }
+  }
+
+  public static byte[] encodeDerChoiceConstructed(final byte tagNumber, final byte[] content) {
+      return encodeDerExplicitlyTaggedContextSpecificConstructed(tagNumber, content);
+  }
+
+  public static byte[] encodeDerChoicePrimitive(final byte tagNumber, final byte[] content) {
+    return encodeDerExplicitlyTaggedContextSpecificConstructed(tagNumber, content);
   }
 }

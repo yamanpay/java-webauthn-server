@@ -26,6 +26,7 @@ package com.yubico.internal.util;
 
 import java.io.ByteArrayInputStream;
 import java.io.InputStream;
+import java.net.URL;
 import java.nio.ByteBuffer;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -37,9 +38,11 @@ import java.util.Arrays;
 import java.util.Base64;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
 public class CertificateParser {
   public static final String ID_FIDO_GEN_CE_AAGUID = "1.3.6.1.4.1.45724.1.1.4";
+  public static final String OID_CRL_DISTRIBUTION_POINTS = "2.5.29.31";
   private static final Base64.Decoder BASE64_DECODER = Base64.getDecoder();
 
   private static final List<String> FIXSIG =
@@ -150,6 +153,79 @@ public class CertificateParser {
   }
 
   public static Optional<byte[]> parseFidoAaguidExtension(X509Certificate cert) {
+    Optional<byte[]> result =
+        Optional.ofNullable(cert.getExtensionValue(ID_FIDO_GEN_CE_AAGUID))
+            .map(CertificateParser::parseAaguid);
+    result.ifPresent(
+        aaguid -> {
+          if (cert.getCriticalExtensionOIDs().contains(ID_FIDO_GEN_CE_AAGUID)) {
+            throw new IllegalArgumentException(
+                String.format(
+                    "X.509 extension %s (id-fido-gen-ce-aaguid) must not be marked critical.",
+                    ID_FIDO_GEN_CE_AAGUID));
+          }
+        });
+    return result;
+  }
+
+  public static Optional<Set<URL>> parseCrlDistributionPointsExtension(X509Certificate cert) {
+
+    final byte[] crldpExtension = cert.getExtensionValue(OID_CRL_DISTRIBUTION_POINTS);
+    if (crldpExtension != null) {
+      BinaryUtil.ParseDerResult<byte[]> outerSeq = BinaryUtil.parseDerSequence(crldpExtension, 0);
+      int outerSeqOffset = 0;
+      while (outerSeqOffset < outerSeq.result.length) {
+        BinaryUtil.ParseDerResult<byte[]> distributionPoint = BinaryUtil.parseDerSequence(outerSeq.result, outerSeqOffset);
+        int distributionPointOffset = 0;
+
+        try {
+          BinaryUtil.ParseDerResult<byte[]> dp = BinaryUtil.parseDerChoice(distributionPoint.result, distributionPointOffset, (byte) 0);
+          distributionPointOffset = dp.nextOffset;
+
+          try {
+            BinaryUtil.ParseDerResult<byte[]> fullName = BinaryUtil.parseDerChoice(dp.result, 0, (byte) 0);
+
+            try {
+              BinaryUtil.ParseDerResult<byte[]> asdfasdfasd = BinaryUtil.parseDerChoice(dp.result, 0, (byte) 0);
+              // TODO: Finish this
+
+
+            } catch (IllegalArgumentException e) {
+              // Ignore
+            }
+
+          } catch (IllegalArgumentException e) {
+            // Ignore
+          }
+
+          try {
+            BinaryUtil.ParseDerResult<byte[]> nameRelativeToCrlIssuer = BinaryUtil.parseDerChoice(dp.result, 0, (byte) 1);
+          } catch (IllegalArgumentException e) {
+            // Ignore
+          }
+
+
+        } catch (IllegalArgumentException e) {
+          // Ignore
+        }
+
+        try {
+          BinaryUtil.ParseDerResult<byte[]> reasons = BinaryUtil.parseDerChoice(distributionPoint.result, distributionPointOffset, (byte) 1);
+          distributionPointOffset = reasons.nextOffset;
+        } catch (IllegalArgumentException e) {
+          // Ignore
+        }
+
+        try {
+          BinaryUtil.ParseDerResult<byte[]> crlIssuer = BinaryUtil.parseDerChoice(distributionPoint.result, distributionPointOffset, (byte) 2);
+        } catch (IllegalArgumentException e) {
+          // Ignore
+        }
+
+        outerSeqOffset = distributionPoint.nextOffset;
+      }
+    }
+
     Optional<byte[]> result =
         Optional.ofNullable(cert.getExtensionValue(ID_FIDO_GEN_CE_AAGUID))
             .map(CertificateParser::parseAaguid);
