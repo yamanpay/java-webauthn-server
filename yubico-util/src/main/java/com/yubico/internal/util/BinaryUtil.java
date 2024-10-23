@@ -314,6 +314,17 @@ public class BinaryUtil {
     return parseDerTagged(der, offset, (byte) 0x30);
   }
 
+  /** Parse an Octet String. */
+  public static ParseDerResult<byte[]> parseDerOctetString(@NonNull byte[] der, int offset) {
+    return parseDerTagged(der, offset, (byte) 0x04);
+  }
+
+  /** Parse an IA5String. */
+  public static ParseDerResult<byte[]> parseDerIA5String(@NonNull byte[] der, int offset) {
+    return parseDerTagged(der, offset, (byte) 0x86);
+  }
+
+
   /**
    * Parse an explicitly tagged value of class "context-specific" (bits 8-7 are 0b10), in
    * "constructed" encoding (bit 6 is 1), with a prescribed tag value, and return a copy of the

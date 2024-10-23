@@ -26,8 +26,10 @@ package com.yubico.internal.util;
 
 import java.io.ByteArrayInputStream;
 import java.io.InputStream;
+import java.net.MalformedURLException;
 import java.net.URL;
 import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.security.cert.Certificate;
@@ -36,6 +38,7 @@ import java.security.cert.CertificateFactory;
 import java.security.cert.X509Certificate;
 import java.util.Arrays;
 import java.util.Base64;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -170,46 +173,59 @@ public class CertificateParser {
 
   public static Optional<Set<URL>> parseCrlDistributionPointsExtension(X509Certificate cert) {
 
+    Set<URL> urls = new HashSet<>();
     final byte[] crldpExtension = cert.getExtensionValue(OID_CRL_DISTRIBUTION_POINTS);
     if (crldpExtension != null) {
-      BinaryUtil.ParseDerResult<byte[]> outerSeq = BinaryUtil.parseDerSequence(crldpExtension, 0);
-      int outerSeqOffset = 0;
-      while (outerSeqOffset < outerSeq.result.length) {
-        BinaryUtil.ParseDerResult<byte[]> distributionPoint = BinaryUtil.parseDerSequence(outerSeq.result, outerSeqOffset);
-        int distributionPointOffset = 0;
+      BinaryUtil.ParseDerResult<byte[]> octetString = BinaryUtil.parseDerOctetString(crldpExtension, 0);
+      //int octetOffset = 0;
+      //while (outerSeqOffset < outerSeq.result.length) {
+      try {
+        BinaryUtil.ParseDerResult<byte[]> CRLDistributionPoints = BinaryUtil.parseDerSequence(octetString.result, 0);
+        //int outerSeqOffset = 0;
 
         try {
-          BinaryUtil.ParseDerResult<byte[]> dp = BinaryUtil.parseDerChoice(distributionPoint.result, distributionPointOffset, (byte) 0);
-          distributionPointOffset = dp.nextOffset;
+          BinaryUtil.ParseDerResult<byte[]> distributionPoints = BinaryUtil.parseDerSequence(CRLDistributionPoints.result, 0);
+          //int distributionPointOffset = 0;
 
           try {
-            BinaryUtil.ParseDerResult<byte[]> fullName = BinaryUtil.parseDerChoice(dp.result, 0, (byte) 0);
+            BinaryUtil.ParseDerResult<byte[]> distributionPointName = BinaryUtil.parseDerChoice(distributionPoints.result, 0, (byte) 0);
+           // distributionPointOffset = dp.nextOffset;
 
             try {
-              BinaryUtil.ParseDerResult<byte[]> asdfasdfasd = BinaryUtil.parseDerChoice(dp.result, 0, (byte) 0);
-              // TODO: Finish this
+              BinaryUtil.ParseDerResult<byte[]> fullName = BinaryUtil.parseDerChoice(distributionPointName.result, 0, (byte) 0);
 
+              try {
+                BinaryUtil.ParseDerResult<byte[]> uriBytes = BinaryUtil.parseDerIA5String(fullName.result, 0);
+                String uriString = new String(uriBytes.result, StandardCharsets.US_ASCII);
+                URL url = new URL(uriString);
+                urls.add(url);
+
+              } catch (IllegalArgumentException e) {
+                // Ignore
+              } catch (MalformedURLException e) {
+                throw new RuntimeException(e);
+              }
 
             } catch (IllegalArgumentException e) {
               // Ignore
             }
 
+            try {
+              //BinaryUtil.ParseDerResult<byte[]> nameRelativeToCrlIssuer = BinaryUtil.parseDerChoice(dp.result, 0, (byte) 1);
+            } catch (IllegalArgumentException e) {
+              // Ignore
+            }
           } catch (IllegalArgumentException e) {
             // Ignore
           }
-
-          try {
-            BinaryUtil.ParseDerResult<byte[]> nameRelativeToCrlIssuer = BinaryUtil.parseDerChoice(dp.result, 0, (byte) 1);
-          } catch (IllegalArgumentException e) {
-            // Ignore
-          }
+          //distributionPointOffset = distributionPoint.nextOffset;
 
 
         } catch (IllegalArgumentException e) {
           // Ignore
         }
 
-        try {
+        /*try {
           BinaryUtil.ParseDerResult<byte[]> reasons = BinaryUtil.parseDerChoice(distributionPoint.result, distributionPointOffset, (byte) 1);
           distributionPointOffset = reasons.nextOffset;
         } catch (IllegalArgumentException e) {
@@ -220,9 +236,11 @@ public class CertificateParser {
           BinaryUtil.ParseDerResult<byte[]> crlIssuer = BinaryUtil.parseDerChoice(distributionPoint.result, distributionPointOffset, (byte) 2);
         } catch (IllegalArgumentException e) {
           // Ignore
-        }
+        }*/
 
-        outerSeqOffset = distributionPoint.nextOffset;
+        //outerSeqOffset = distributionPoint.nextOffset;
+      } catch (IllegalArgumentException e) {
+        // Ignore
       }
     }
 
@@ -238,6 +256,6 @@ public class CertificateParser {
                     ID_FIDO_GEN_CE_AAGUID));
           }
         });
-    return result;
+    return Optional.of(urls);
   }
 }
